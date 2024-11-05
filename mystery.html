@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Team Lunch Game</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* Reset default margin and padding */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #ffffff;
+            overflow: hidden;
+        }
+        #question {
+            text-align: center;
+            font-size: 2.5em;
+            margin: 20px;
+            color: #000000;
+            font-weight: 700;
+        }
+        #answers {
+            position: relative;
+            width: 100%;
+            height: calc(100vh - 120px);
+            overflow: hidden;
+        }
+        .answer {
+            position: absolute;
+            /* Increased padding by 50% */
+            padding: 22.5px 37.5px;
+            border-radius: 10px;
+            /* Increased font size by 50% */
+            font-size: 2.25em;
+            font-family: 'Roboto Mono', monospace;
+            color: #ffffff;
+            font-weight: 700;
+            text-align: center;
+            user-select: none;
+        }
+        #instructions {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            color: #000000;
+            font-size: 1em;
+        }
+    </style>
+</head>
+<body>
+
+<div id="question"></div>
+<div id="answers"></div>
+<div id="instructions">
+    Press <strong>Space Bar</strong> to Start/Stop Answers &nbsp;|&nbsp;
+    Use <strong>&larr;</strong> and <strong>&rarr;</strong> to Navigate Questions
+</div>
+
+<script>
+    var markdownContent = '';
+    var questions = [];
+    var currentQuestionIndex = 0;
+    var answerElements = [];
+    var velocities = [];
+    var positions = [];
+    var moving = true;
+    var animationInterval = null;
+    var answersDiv = document.getElementById('answers');
+
+    // High contrast colors for answers
+    var answerColors = [
+        '#E74C3C', // Red
+        '#2ECC71', // Green
+        '#3498DB', // Blue
+        '#9B59B6', // Purple
+        '#F1C40F', // Yellow
+        '#E67E22', // Orange
+        '#1ABC9C', // Turquoise
+        '#34495E', // Dark Blue
+        '#D35400', // Dark Orange
+        '#7F8C8D'  // Gray
+    ];
+
+    function parseMarkdown(content) {
+        var questions = [];
+        var lines = content.trim().split('\n');
+        var currentQuestion = null;
+        for (var i = 0; i < lines.length; i++) {
+            var line = lines[i].trim();
+
+            if (line === '') {
+                // Empty line indicates end of current question
+                if (currentQuestion && currentQuestion.answers.length > 0) {
+                    questions.push(currentQuestion);
+                    currentQuestion = null;
+                }
+                continue;
+            }
+
+            if (line.startsWith('- ')) {
+                // Answer line
+                if (currentQuestion) {
+                    var answerText = line.substring(2).trim();
+                    currentQuestion.answers.push(answerText);
+                }
+            } else {
+                // Question line
+                if (currentQuestion && currentQuestion.answers.length > 0) {
+                    // Previous question is complete, start new question
+                    questions.push(currentQuestion);
+                }
+                currentQuestion = {
+                    question: line,
+                    answers: []
+                };
+            }
+        }
+
+        // Add the last question if not already added
+        if (currentQuestion && currentQuestion.answers.length > 0) {
+            questions.push(currentQuestion);
+        }
+
+        return questions;
+    }
+
+    function displayQuestion(index) {
+        var questionObj = questions[index];
+        if (!questionObj) {
+            alert('No more questions');
+            return;
+        }
+
+        // Display the question
+        var questionDiv = document.getElementById('question');
+        questionDiv.textContent = questionObj.question;
+
+        // Clear previous answers
+        answersDiv.innerHTML = '';
+
+        // Create answer elements
+        answerElements = [];
+        velocities = [];
+        positions = [];
+        for (var i = 0; i < questionObj.answers.length; i++) {
+            var answerText = questionObj.answers[i];
+            var answerDiv = document.createElement('div');
+            answerDiv.className = 'answer';
+            answerDiv.textContent = answerText;
+            answersDiv.appendChild(answerDiv);
+
+            // Assign a color from the answerColors array
+            answerDiv.style.backgroundColor = answerColors[i % answerColors.length];
+
+            // Ensure the element is rendered to get its dimensions
+            answerDiv.style.left = '0px';
+            answerDiv.style.top = '0px';
+
+            // Random initial position
+            var posX = Math.random() * (answersDiv.clientWidth - answerDiv.clientWidth);
+            var posY = Math.random() * (answersDiv.clientHeight - answerDiv.clientHeight);
+            answerDiv.style.left = posX + 'px';
+            answerDiv.style.top = posY + 'px';
+
+            positions.push({ x: posX, y: posY });
+
+            // Random velocity
+            velocities.push({
+                dx: (Math.random() - 0.5) * 4,
+                dy: (Math.random() - 0.5) * 4
+            });
+
+            answerElements.push(answerDiv);
+        }
+
+        // Start moving the answers
+        moving = true;
+        animateAnswers();
+    }
+
+    function animateAnswers() {
+        if (animationInterval) {
+            clearInterval(animationInterval);
+        }
+        animationInterval = setInterval(function() {
+            if (moving) {
+                // Move each answer
+                for (var i = 0; i < answerElements.length; i++) {
+                    var answerDiv = answerElements[i];
+                    var velocity = velocities[i];
+                    var position = positions[i];
+
+                    // Update position
+                    position.x += velocity.dx;
+                    position.y += velocity.dy;
+
+                    // Bounce off walls
+                    if (position.x <= 0) {
+                        position.x = 0;
+                        velocity.dx *= -1;
+                    }
+                    if (position.x >= answersDiv.clientWidth - answerDiv.clientWidth) {
+                        position.x = answersDiv.clientWidth - answerDiv.clientWidth;
+                        velocity.dx *= -1;
+                    }
+                    if (position.y <= 0) {
+                        position.y = 0;
+                        velocity.dy *= -1;
+                    }
+                    if (position.y >= answersDiv.clientHeight - answerDiv.clientHeight) {
+                        position.y = answersDiv.clientHeight - answerDiv.clientHeight;
+                        velocity.dy *= -1;
+                    }
+
+                    // Update element position
+                    answerDiv.style.left = position.x + 'px';
+                    answerDiv.style.top = position.y + 'px';
+                }
+
+                // Check for collisions
+                for (var i = 0; i < answerElements.length; i++) {
+                    for (var j = i + 1; j < answerElements.length; j++) {
+                        handleCollision(i, j);
+                    }
+                }
+            }
+        }, 20); // Adjust for smoother movement
+    }
+
+    function handleCollision(indexA, indexB) {
+        var posA = positions[indexA];
+        var posB = positions[indexB];
+        var velA = velocities[indexA];
+        var velB = velocities[indexB];
+        var elemA = answerElements[indexA];
+        var elemB = answerElements[indexB];
+
+        // Get dimensions
+        var rectA = {
+            x: posA.x,
+            y: posA.y,
+            width: elemA.clientWidth,
+            height: elemA.clientHeight
+        };
+        var rectB = {
+            x: posB.x,
+            y: posB.y,
+            width: elemB.clientWidth,
+            height: elemB.clientHeight
+        };
+
+        // Check for collision
+        if (
+            rectA.x < rectB.x + rectB.width &&
+            rectA.x + rectA.width > rectB.x &&
+            rectA.y < rectB.y + rectB.height &&
+            rectA.y + rectA.height > rectB.y
+        ) {
+            // Swap velocities
+            var tempDx = velA.dx;
+            var tempDy = velA.dy;
+            velA.dx = velB.dx;
+            velA.dy = velB.dy;
+            velB.dx = tempDx;
+            velB.dy = tempDy;
+
+            // Adjust positions to prevent sticking
+            adjustPositions(rectA, rectB, posA, posB);
+        }
+    }
+
+    function adjustPositions(rectA, rectB, posA, posB) {
+        // Calculate overlap
+        var overlapX = Math.min(
+            rectA.x + rectA.width - rectB.x,
+            rectB.x + rectB.width - rectA.x
+        );
+        var overlapY = Math.min(
+            rectA.y + rectA.height - rectB.y,
+            rectB.y + rectB.height - rectA.y
+        );
+
+        // Move elements apart along the axis of least penetration
+        if (overlapX < overlapY) {
+            if (rectA.x < rectB.x) {
+                posA.x -= overlapX / 2;
+                posB.x += overlapX / 2;
+            } else {
+                posA.x += overlapX / 2;
+                posB.x -= overlapX / 2;
+            }
+        } else {
+            if (rectA.y < rectB.y) {
+                posA.y -= overlapY / 2;
+                posB.y += overlapY / 2;
+            } else {
+                posA.y += overlapY / 2;
+                posB.y -= overlapY / 2;
+            }
+        }
+    }
+
+    document.addEventListener('keydown', function(event) {
+        if (event.code === 'Space') {
+            moving = !moving;
+            if (!moving) {
+                clearInterval(animationInterval);
+            } else {
+                animateAnswers();
+            }
+        } else if (event.code === 'ArrowRight') {
+            // Next question
+            currentQuestionIndex++;
+            if (currentQuestionIndex >= questions.length) {
+                currentQuestionIndex = 0;
+            }
+            displayQuestion(currentQuestionIndex);
+        } else if (event.code === 'ArrowLeft') {
+            // Previous question
+            currentQuestionIndex--;
+            if (currentQuestionIndex < 0) {
+                currentQuestionIndex = questions.length -1;
+            }
+            displayQuestion(currentQuestionIndex);
+        }
+    });
+
+    // Fetch the questions.md file
+    fetch('questions.md')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.text();
+        })
+        .then(text => {
+            markdownContent = text;
+            questions = parseMarkdown(markdownContent);
+            currentQuestionIndex = 0;
+            displayQuestion(currentQuestionIndex);
+        })
+        .catch(error => {
+            console.error('Error fetching questions.md:', error);
+            alert('Failed to load questions.md. Please make sure the file exists and is accessible.');
+        });
+
+</script>
+
+</body>
+</html>
